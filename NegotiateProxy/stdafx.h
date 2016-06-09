@@ -13,3 +13,13 @@
 
 
 // TODO: Установите здесь ссылки на дополнительные заголовки, требующиеся для программы
+
+#define SECURITY_WIN32
+
+#include <winsock2.h>
+#include <stdio.h>
+#include <Sspi.h>
+#include <wincred.h>
+#include <stdlib.h>
+#include <Ws2tcpip.h>
+#include "Functions.h"
