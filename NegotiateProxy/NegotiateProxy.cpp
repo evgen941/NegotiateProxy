@@ -11,7 +11,6 @@
 #include <stdlib.h>
 #include <Ws2tcpip.h>
 
-
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "Secur32.lib")
 #pragma comment(lib, "Credui.lib")
@@ -390,6 +389,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	WCHAR *lPort, *rPort, *rAddr;
 	int i = 1;
 	argv[i] ? NULL : info(argv[0]);
+
 	if (!wcscmp(argv[i], L"LP"))
 	{
 		(lPort = argv[++i]) ? NULL : info(argv[0]);
