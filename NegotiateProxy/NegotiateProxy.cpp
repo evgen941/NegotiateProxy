@@ -49,6 +49,7 @@ SECURITY_STATUS getToken(char **negotiateToken, WCHAR *hostName)
 
 	SEC_WCHAR targetName[NI_MAXHOST];
 
+	// Get domain name
 	WCHAR *domain = new WCHAR[wcslen(hostName) + 1], *pDomain = domain;
 
 	for (int i = wcslen(hostName), point = 0; i >= 0; i--)
@@ -62,6 +63,7 @@ SECURITY_STATUS getToken(char **negotiateToken, WCHAR *hostName)
 		domain[i] = towupper(hostName[i]);
 	}
 
+	// Set target name
 	_snwprintf_s(
 		targetName,
 		NI_MAXHOST,
@@ -101,7 +103,7 @@ SECURITY_STATUS getToken(char **negotiateToken, WCHAR *hostName)
 
 	//--------------------------------------------------------------------
 
-	if (NULL != pAuthIdentityEx2)
+	if (pAuthIdentityEx2 != NULL)
 	{
 		//--------------------------------------------------------------------
 		CredHandle hCredential;
@@ -175,13 +177,14 @@ SECURITY_STATUS getToken(char **negotiateToken, WCHAR *hostName)
 			base64_encode(reinterpret_cast < char* > (m_pOutBuf), outSecBuf.cbBuffer, negotiateToken);
 		}
 	}
+	else { return -1; }
 	FreeContextBuffer(PackageInfo);
 	return SEC_E_OK;
 }
 
 int setAuthBuf(char(&buff)[BUFF_SIZE], char *destHost, WCHAR *hostName)
 {
-	char *negotiateToken;
+	char *negotiateToken = new char[2048];
 	if (getToken(&negotiateToken, hostName) == SEC_E_OK)
 	{
 		memset(buff, 0, sizeof(buff));
@@ -196,11 +199,14 @@ int setAuthBuf(char(&buff)[BUFF_SIZE], char *destHost, WCHAR *hostName)
 			"Proxy-Authorization: Negotiate",
 			negotiateToken
 		);
-
+		delete[] negotiateToken;
 		return strlen(buff);
 	}
 	else
+	{
+		delete[] negotiateToken;
 		return -1;
+	}
 }
 
 int transmit(char(&buff)[BUFF_SIZE], SOCKET sockFrom, SOCKET sockTo, bool toProxy, bool *needAuth, WCHAR *hostName)
@@ -221,7 +227,7 @@ int transmit(char(&buff)[BUFF_SIZE], SOCKET sockFrom, SOCKET sockTo, bool toProx
 	}
 
 	len = send(sockTo, buff, len, 0);
-	wprintf(L"\r%s %i bytes%s      ", toProxy ? L"--> Send to proxy" : L"<-- Send to client", len, len<0 ? L". Transmission failed\n" : L"");
+	//wprintf(L"\r%s %i bytes%s      ", toProxy ? L"--> Send to proxy" : L"<-- Send to client", len, len<0 ? L". Transmission failed\n" : L"");
 	return len;
 }
 
@@ -364,6 +370,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	// The buffers for the reception - transmission
 	char prBuff[BUFF_SIZE], clBuff[BUFF_SIZE];
+	int connections = 0;
 
 	while (1)
 	{
@@ -395,6 +402,8 @@ int _tmain(int argc, _TCHAR* argv[])
 					wprintf(L"Connection failed with error: %d\n", WSAGetLastError());
 					return -1;
 				}
+
+				printConnections(++connections);
 
 				if (createEv(&NewEvent)) return -1;
 
@@ -445,9 +454,6 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			if (NetworkEvents.lNetworkEvents & FD_CLOSE)
 			{
-				shutdown(SocketArray[secondIndex], SD_BOTH);
-				shutdown(SocketArray[Index], SD_BOTH);
-
 				closesocket(SocketArray[secondIndex]);
 				closesocket(SocketArray[Index]);
 
@@ -463,7 +469,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				EventTotal -= 2;
 
 				needAuth[toProxy ? Index : Index - 1] = true;
-				wprintf(L"\nConnection closed\n");
+				printConnections(--connections);
 			}
 		}
 	}

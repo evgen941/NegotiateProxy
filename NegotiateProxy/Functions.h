@@ -11,3 +11,5 @@ SOCKET newSock();
 void info(_TCHAR *progName);
 
 int getSecondWord(char *inBuff, char *outBuff, int inBuffLen);
+
+void printConnections(int connections);

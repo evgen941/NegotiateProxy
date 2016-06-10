@@ -138,3 +138,8 @@ int getSecondWord(char *inBuff, char *outBuff, int inBuffLen)
 
 	return 0;
 }
+
+void printConnections(int connections)
+{
+	wprintf(L"\rCurrent connections: %i   ", connections);
+}
