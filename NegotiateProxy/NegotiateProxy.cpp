@@ -38,7 +38,6 @@ SECURITY_STATUS getToken(char **negotiateToken, WCHAR *hostName)
 	unsigned long m_cbMaxToken = PackageInfo->cbMaxToken;
 
 	PBYTE m_pOutBuf = (PBYTE)malloc(m_cbMaxToken);
-	BOOL m_fHaveCtxtHandle = false;
 
 	//--------------------------------------------------------------------
 
@@ -136,7 +135,6 @@ SECURITY_STATUS getToken(char **negotiateToken, WCHAR *hostName)
 
 		unsigned long	fContextAttr;
 
-		BOOL			done = false;
 
 		// prepare output buffer
 		outSecBufDesc.ulVersion = 0;
@@ -202,7 +200,7 @@ int setAuthBuf(char(&buff)[BUFF_SIZE], char *destHost, WCHAR *hostName)
 		return strlen(buff);
 	}
 	else
-		return 1;
+		return -1;
 }
 
 int transmit(char(&buff)[BUFF_SIZE], SOCKET sockFrom, SOCKET sockTo, bool toProxy, bool *needAuth, WCHAR *hostName)
@@ -218,12 +216,12 @@ int transmit(char(&buff)[BUFF_SIZE], SOCKET sockFrom, SOCKET sockTo, bool toProx
 	{
 		getSecondWord(buff, destHost, len);
 		len = setAuthBuf(buff, destHost, hostName);
-		if (len < 0) { return 1; }
+		if (len < 0) { return -1; }
 		*needAuth = false;
 	}
 
 	len = send(sockTo, buff, len, 0);
-	wprintf(L"%s %i bytes%s\n", toProxy ? L"--> Send to proxy" : L"<-- Send to client", len, len<0 ? L". Transmission failed" : L"");
+	wprintf(L"\r%s %i bytes%s      ", toProxy ? L"--> Send to proxy" : L"<-- Send to client", len, len<0 ? L". Transmission failed\n" : L"");
 	return len;
 }
 
@@ -247,11 +245,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		(rPort = argv[i++]) ? NULL : info(argv[0]);
 	}
 
-	if (WSAInit()) return 1;
-
-	//----------------------------------------------------------------------------------------------------
-
-	//SEC_CHAR *targetName = "HTTP/prox.apmes.ru@APMES.RU";
+	if (WSAInit()) return -1;
 
 	//----------------------------------------------------------------------------------------------------
 
@@ -271,7 +265,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		default: wprintf(L"Gethost function failed with error: %i\n", iResult);
 		}
 
-		return 1;
+		return -1;
 	}
 
 	WCHAR host[NI_MAXHOST];
@@ -289,12 +283,12 @@ int _tmain(int argc, _TCHAR* argv[])
 		default:			wprintf(L"Nameinfo function failed with error: %i\n", iResult);
 		}
 
-		return 1;
+		return -1;
 	}
 
 	// Create a listening socket
 	SOCKET ListenSocket = newSock();
-	if (ListenSocket == INVALID_SOCKET) return 1;
+	if (ListenSocket == INVALID_SOCKET) return -1;
 
 	// Listen address
 	memset(&hints, 0, sizeof hints);
@@ -312,7 +306,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		default: wprintf(L"Gethost function failed with error: %i\n", iResult);
 		}
 
-		return 1;
+		return -1;
 	}
 
 	//-------------------------
@@ -321,13 +315,13 @@ int _tmain(int argc, _TCHAR* argv[])
 	if (iResult != 0)
 	{
 		wprintf(L"bind failed with error: %#x\n", WSAGetLastError());
-		return 1;
+		return -1;
 	}
 
 	//-------------------------
 	// Create a new event
 	WSAEVENT NewEvent;
-	if (createEv(&NewEvent)) return 1;
+	if (createEv(&NewEvent)) return -1;
 
 
 	//-------------------------
@@ -337,7 +331,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	if (iResult != 0)
 	{
 		wprintf(L"WSAEventSelect failed with error: %#x\n", WSAGetLastError());
-		return 1;
+		return -1;
 	}
 
 	//-------------------------
@@ -346,7 +340,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	if (iResult != 0)
 	{
 		wprintf(L"listen failed with error: %#x\n", WSAGetLastError());
-		return 1;
+		return -1;
 	}
 	wprintf(L"MyProxy listen on port %s\n", lPort);
 
@@ -399,10 +393,10 @@ int _tmain(int argc, _TCHAR* argv[])
 				if (iResult != 0)
 				{
 					wprintf(L"Connection failed with error: %d\n", WSAGetLastError());
-					return 1;
+					return -1;
 				}
 
-				if (createEv(&NewEvent)) return 1;
+				if (createEv(&NewEvent)) return -1;
 
 				SocketArray[EventTotal] = ClientSocket;
 				EventArray[EventTotal] = NewEvent;
@@ -414,12 +408,12 @@ int _tmain(int argc, _TCHAR* argv[])
 				if (iResult != 0)
 				{
 					wprintf(L"WSAEventSelect failed with error: %d\n", WSAGetLastError());
-					return 1;
+					return -1;
 				}
 
 				EventTotal++;
 
-				if (createEv(&NewEvent)) return 1;
+				if (createEv(&NewEvent)) return -1;
 
 				SocketArray[EventTotal] = ProxySocket;
 				EventArray[EventTotal] = NewEvent;
@@ -431,7 +425,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				if (iResult != 0)
 				{
 					wprintf(L"WSAEventSelect failed with error: %d\n", WSAGetLastError());
-					return 1;
+					return -1;
 				}
 
 				EventTotal++;
@@ -446,7 +440,7 @@ int _tmain(int argc, _TCHAR* argv[])
 					toProxy,
 					&needAuth[Index],
 					host);
-				if (iResult < 0) return 1;
+				if (iResult < 0) return -1;
 			}
 
 			if (NetworkEvents.lNetworkEvents & FD_CLOSE)
@@ -460,19 +454,16 @@ int _tmain(int argc, _TCHAR* argv[])
 				WSACloseEvent(EventArray[secondIndex]);
 				WSACloseEvent(EventArray[Index]);
 
-				// Перемещаем из верхушки на освободившееся место
-				if (EventTotal > 2)
-				{
-					SocketArray[Index] = toProxy ? SocketArray[EventTotal - 2] : SocketArray[EventTotal - 1];
-					SocketArray[secondIndex] = toProxy ? SocketArray[EventTotal - 1] : SocketArray[EventTotal - 2];
+				// Move from the top to the free place
+				SocketArray[Index] = toProxy ? SocketArray[EventTotal - 2] : SocketArray[EventTotal - 1];
+				SocketArray[secondIndex] = toProxy ? SocketArray[EventTotal - 1] : SocketArray[EventTotal - 2];
 
-					EventArray[Index] = toProxy ? EventArray[EventTotal - 2] : EventArray[EventTotal - 1];
-					EventArray[secondIndex] = toProxy ? EventArray[EventTotal - 1] : EventArray[EventTotal - 2];
-				}
+				EventArray[Index] = toProxy ? EventArray[EventTotal - 2] : EventArray[EventTotal - 1];
+				EventArray[secondIndex] = toProxy ? EventArray[EventTotal - 1] : EventArray[EventTotal - 2];
 				EventTotal -= 2;
 
 				needAuth[toProxy ? Index : Index - 1] = true;
-				wprintf(L"Connection closed\n");
+				wprintf(L"\nConnection closed\n");
 			}
 		}
 	}
