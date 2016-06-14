@@ -565,6 +565,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				EventArray[secondIndex] = toProxy ? EventArray[EventTotal - 1] : EventArray[EventTotal - 2];
 				EventTotal -= 2;
 
+				//needAuth[toProxy ? index : index - 1] = true;
 				printConnections(--connections);
 			}
 		}

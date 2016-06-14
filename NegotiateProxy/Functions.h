@@ -10,6 +10,10 @@ SOCKET newSock();
 
 void info(_TCHAR *progName);
 
-int getSecondWord(char *inBuff, char *outBuff, int inBuffLen);
+int getString(char *inBuff, int inBuffLen, char *outBuff, int len, int offset);
+
+int getWord(char *inBuff, int inBuffLen, char *outBuff, int len, int offset);
+
+//void getSecondWord(char *inBuff, char *outBuff, int inBuffLen);
 
 void printConnections(int connections);

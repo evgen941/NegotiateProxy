@@ -118,25 +118,33 @@ SOCKET newSock()
 
 void info(_TCHAR *progName)
 {
-	wprintf(L"usage:  \n%s [LP <lPort>] <rAddr> <rPort>\n\n", progName);
+	wprintf(L"usage:  \n%s [lp <lPort>] <rAddr> <rPort>\n\n", progName);
 	wprintf(L"lPort - the port on which the server listens, by default 3128\n");
 	wprintf(L"rAddr - address of the proxy-server to which you are connecting\n");
 	wprintf(L"rPort - proxy-server port to which you are connecting\n\n");
-	wprintf(L"example: \n%s LP 8080 proxy.host.ru 3128\n", progName);
+	wprintf(L"example: \n%s lp 8080 proxy.host.ru 3128\n", progName);
 	exit(0);
 }
 
-int getSecondWord(char *inBuff, char *outBuff, int inBuffLen)
+int getString(char *inBuff, int inBuffLen, char *outBuff, int len, int offset)
 {
-	int i, n, m;
+	int i, n;
 
-	for (m = 0; (inBuff[m] != ' ') && (m<inBuffLen); m++) {}
+	for (i = 0, n = offset; (inBuff[n] != '\r') && (n < inBuffLen) && (i < len); i++, n++) {}
 
-	for (n = ++m; (inBuff[n] != ' ') && (n<inBuffLen); n++) {}
+	memcpy(outBuff, &inBuff[offset], i); outBuff[i] = 0;
 
-	for (i = 0; m < n; outBuff[i] = inBuff[m], i++, m++) {} outBuff[i] = 0;
+	return (n == inBuffLen) ? -1 : n + 2;
+}
 
-	return 0;
+int getWord(char *inBuff, int inBuffLen, char *outBuff, int len, int offset)
+{
+	int i, n;
+
+	for (i = 0, n = offset; (inBuff[n] != ' ') && (n < inBuffLen) && (i < len); i++, n++) {}
+
+	memcpy(outBuff, &inBuff[offset], i); outBuff[i] = 0;
+	return (n == inBuffLen) ? -1 : n + 1;
 }
 
 void printConnections(int connections)
