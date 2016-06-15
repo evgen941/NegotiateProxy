@@ -9,7 +9,7 @@
 // Define parameters
 #define BUFF_SIZE	12*1024 // buffer size
 
-PSEC_WINNT_AUTH_IDENTITY_OPAQUE pAuthIdentityEx2 = NULL; // The structure for storing user data entered
+PSEC_WINNT_AUTH_IDENTITY_OPAQUE pAuthIdentity = NULL; // The structure for storing user data entered
 
 SECURITY_STATUS getToken(char **negotiateToken, WCHAR *hostName)
 {
@@ -21,15 +21,13 @@ SECURITY_STATUS getToken(char **negotiateToken, WCHAR *hostName)
 	// Get the name of the package
 	stat = EnumerateSecurityPackages(
 		&cPackages,
-		&PackageInfo
-	);
+		&PackageInfo);
 
 	if (stat != SEC_E_OK)
 	{
 		wprintf(
 			L"Security function failed with error: %#x\n",
-			stat
-		);
+			stat);
 		return stat;
 	}
 
@@ -43,8 +41,17 @@ SECURITY_STATUS getToken(char **negotiateToken, WCHAR *hostName)
 	CREDUI_INFO creduiInfo = { 0 };
 	creduiInfo.cbSize = sizeof(creduiInfo);
 	// Change the message text and caption to the actual text for your dialog.
-	creduiInfo.pszCaptionText = L"Enter the network password";
-	creduiInfo.pszMessageText = L"Enter your username and password to connect to the proxy-server";
+	SEC_WCHAR message[NI_MAXHOST];
+
+	_snwprintf_s(
+		message,
+		NI_MAXHOST,
+		_TRUNCATE,
+		L"Enter your username and password to connect to %s",
+		hostName);
+
+	creduiInfo.pszCaptionText = L"Connect to the proxy-server";
+	creduiInfo.pszMessageText = message;
 
 	SEC_WCHAR targetName[NI_MAXHOST];
 
@@ -73,96 +80,85 @@ SECURITY_STATUS getToken(char **negotiateToken, WCHAR *hostName)
 
 	delete[] pDomain;
 
-	BOOL fSave = FALSE; // Checkmark "Remember user"
-
 	// Pass user authentication
-	if (pAuthIdentityEx2 == NULL)
+	if (pAuthIdentity == NULL)
 	{
+		BOOL fSave = FALSE; // Checkmark "Remember user"
+
 		stat = SspiPromptForCredentials(
 			targetName,
 			&creduiInfo,
 			0,
 			szPackage,
 			NULL,
-			&pAuthIdentityEx2,
+			&pAuthIdentity,
 			&fSave,
-			0
-		);
+			0);
 
 		if (stat != SEC_E_OK)
 		{
 			wprintf(
-				L"Authentification failed with error: %#x\n",
-				stat
-			);
+				L"Authentification failed with error: %u\n",
+				stat);
 			return stat;
 		}
-
 	}
 
 	//--------------------------------------------------------------------
+	CredHandle hCredential;
+	TimeStamp tsExpiry;
 
-	if (pAuthIdentityEx2 != NULL)
-	{
-		//--------------------------------------------------------------------
-		CredHandle hCredential;
-		TimeStamp tsExpiry;
+	stat = AcquireCredentialsHandle(
+		NULL,
+		szPackage,
+		SECPKG_CRED_OUTBOUND,
+		NULL,
+		pAuthIdentity,
+		NULL,
+		NULL,
+		&hCredential,
+		&tsExpiry);
 
-		stat = AcquireCredentialsHandle(
-			NULL,
-			szPackage,
-			SECPKG_CRED_OUTBOUND,
-			NULL,
-			pAuthIdentityEx2,
-			NULL,
-			NULL,
-			&hCredential,
-			&tsExpiry);
-
-		if (stat != SEC_E_OK)
+	if (stat != SEC_E_OK)
 		{
 			wprintf(
 				L"Credentials function failed with error: %#x\n",
-				stat
-			);
+				stat);
 			return stat;
 		}
 
-		//--------------------------------------------------------------------
+	//--------------------------------------------------------------------
 
-		CtxtHandle		m_hCtxt;
-		SecBufferDesc	outSecBufDesc;
-		SecBuffer		outSecBuf;
+	CtxtHandle		m_hCtxt;
+	SecBufferDesc	outSecBufDesc;
+	SecBuffer		outSecBuf;
 
-		unsigned long	fContextAttr;
+	unsigned long	fContextAttr;
 
 
-		// prepare output buffer
-		outSecBufDesc.ulVersion = 0;
-		outSecBufDesc.cBuffers = 1;
-		outSecBufDesc.pBuffers = &outSecBuf;
-		outSecBuf.cbBuffer = m_cbMaxToken;
-		outSecBuf.BufferType = SECBUFFER_TOKEN;
-		outSecBuf.pvBuffer = m_pOutBuf;
+	// prepare output buffer
+	outSecBufDesc.ulVersion = 0;
+	outSecBufDesc.cBuffers = 1;
+	outSecBufDesc.pBuffers = &outSecBuf;
+	outSecBuf.cbBuffer = m_cbMaxToken;
+	outSecBuf.BufferType = SECBUFFER_TOKEN;
+	outSecBuf.pvBuffer = m_pOutBuf;
 
-		//char *negotiateToken;
+	stat = InitializeSecurityContext(
+		&hCredential,
+		NULL,
+		targetName,
+		ISC_REQ_CONFIDENTIALITY,
+		0,	// reserved1
+		SECURITY_NATIVE_DREP,
+		NULL,
+		0,	// reserved2
+		&m_hCtxt,
+		&outSecBufDesc,
+		&fContextAttr,
+		&tsExpiry);
 
-		stat = InitializeSecurityContext(
-			&hCredential,
-			NULL,
-			targetName,
-			ISC_REQ_CONFIDENTIALITY,
-			0,	// reserved1
-			SECURITY_NATIVE_DREP,
-			NULL,
-			0,	// reserved2
-			&m_hCtxt,
-			&outSecBufDesc,
-			&fContextAttr,
-			&tsExpiry
-		);
-
-		switch (stat)
+	switch (stat)
 		{
 		case SEC_E_OK:
 		case SEC_I_CONTINUE_NEEDED:
@@ -171,12 +167,11 @@ SECURITY_STATUS getToken(char **negotiateToken, WCHAR *hostName)
 		}
 
 
-		if (outSecBuf.cbBuffer)
+	if (outSecBuf.cbBuffer)
 		{
 			base64_encode(reinterpret_cast < char* > (m_pOutBuf), outSecBuf.cbBuffer, negotiateToken);
 		}
-	}
-	else { return -1; }
+	
 	FreeContextBuffer(PackageInfo);
 	return SEC_E_OK;
 }
@@ -342,7 +337,6 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 
 	if (WSAInit()) return -1;
-
 	//----------------------------------------------------------------------------------------------------
 
 	ADDRINFOT hints, *remoteAddr = NULL, *inetAddr = NULL;
@@ -438,7 +432,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		wprintf(L"listen failed with error: %#x\n", WSAGetLastError());
 		return -1;
 	}
-	wprintf(L"MyProxy listen on port %s\n", lPort);
+	wprintf(L"NegotiateProxy listen on port %s\n", lPort);
 
 	//-------------------------
 	// Add the socket and event to the arrays, increment number of events
