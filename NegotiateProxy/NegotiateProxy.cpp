@@ -160,23 +160,18 @@ SECURITY_STATUS getToken(char **negotiateToken, WCHAR *hostName)
 
 		BOOL fSave = TRUE; // Checkmark "Remember user"
 
-		stat = SspiPromptForCredentials(
-			targetName,
-			&creduiInfo,
-			0,
-			szPackage,
-			NULL,
-			&pAuthIdentity,
-			&fSave,
-			0);
-
-		if (stat != SEC_E_OK)
+		do
 		{
-			wprintf(
-				L"Authentification failed with error: %u\n",
-				stat);
-			//return stat;
-		}
+			stat = SspiPromptForCredentials(
+				targetName,
+				&creduiInfo,
+				0,
+				szPackage,
+				NULL,
+				&pAuthIdentity,
+				&fSave,
+				0);
+		} while (stat != SEC_E_OK);
 			
 	}
 
