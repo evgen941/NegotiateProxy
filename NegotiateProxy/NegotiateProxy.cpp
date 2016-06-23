@@ -38,21 +38,6 @@ SECURITY_STATUS getToken(char **negotiateToken, WCHAR *hostName)
 
 	//--------------------------------------------------------------------
 
-	CREDUI_INFO creduiInfo = { 0 };
-	creduiInfo.cbSize = sizeof(creduiInfo);
-	// Change the message text and caption to the actual text for your dialog.
-	SEC_WCHAR message[NI_MAXHOST];
-
-	_snwprintf_s(
-		message,
-		NI_MAXHOST,
-		_TRUNCATE,
-		L"Enter your username and password to connect to %s",
-		hostName);
-
-	creduiInfo.pszCaptionText = L"Connect to the proxy-server";
-	creduiInfo.pszMessageText = message;
-
 	SEC_WCHAR targetName[NI_MAXHOST];
 
 	// Get domain name
@@ -79,30 +64,6 @@ SECURITY_STATUS getToken(char **negotiateToken, WCHAR *hostName)
 		domain);
 
 	delete[] pDomain;
-
-	// Pass user authentication
-	if (pAuthIdentity == NULL)
-	{
-		BOOL fSave = FALSE; // Checkmark "Remember user"
-
-		stat = SspiPromptForCredentials(
-			targetName,
-			&creduiInfo,
-			0,
-			szPackage,
-			NULL,
-			&pAuthIdentity,
-			&fSave,
-			0);
-
-		if (stat != SEC_E_OK)
-		{
-			wprintf(
-				L"Authentification failed with error: %u\n",
-				stat);
-			return stat;
-		}
-	}
 
 	//--------------------------------------------------------------------
 	CredHandle hCredential;
@@ -158,21 +119,67 @@ SECURITY_STATUS getToken(char **negotiateToken, WCHAR *hostName)
 		&fContextAttr,
 		&tsExpiry);
 
-	switch (stat)
-		{
-		case SEC_E_OK:
-		case SEC_I_CONTINUE_NEEDED:
-		case SEC_I_COMPLETE_AND_CONTINUE: break;
-		default: return stat;
-		}
+	FreeCredentialsHandle(&hCredential);
 
+	switch (stat)
+	{
+	case SEC_I_CONTINUE_NEEDED: 
+	case SEC_I_COMPLETE_AND_CONTINUE: CompleteAuthToken(&m_hCtxt, &outSecBufDesc); break;
+	case SEC_E_OK: break;
+	default: return stat;
+	}
+
+	DeleteSecurityContext(&m_hCtxt);
+	FreeContextBuffer(PackageInfo);
 
 	if (outSecBuf.cbBuffer)
 		{
 			base64_encode(reinterpret_cast < char* > (m_pOutBuf), outSecBuf.cbBuffer, negotiateToken);
 		}
-	
-	FreeContextBuffer(PackageInfo);
+	else
+	{
+		return -1;
+	}
+
+	if (strlen(*negotiateToken) < 500)
+	{
+		CREDUI_INFO creduiInfo = { 0 };
+		creduiInfo.cbSize = sizeof(creduiInfo);
+		// Change the message text and caption to the actual text for your dialog.
+		SEC_WCHAR message[NI_MAXHOST];
+
+		_snwprintf_s(
+			message,
+			NI_MAXHOST,
+			_TRUNCATE,
+			L"Enter your username and password to connect to %s",
+			hostName);
+
+		creduiInfo.pszCaptionText = L"Connect to the proxy-server";
+		creduiInfo.pszMessageText = message;
+
+		BOOL fSave = TRUE; // Checkmark "Remember user"
+
+		stat = SspiPromptForCredentials(
+			targetName,
+			&creduiInfo,
+			0,
+			szPackage,
+			NULL,
+			&pAuthIdentity,
+			&fSave,
+			0);
+
+		if (stat != SEC_E_OK)
+		{
+			wprintf(
+				L"Authentification failed with error: %u\n",
+				stat);
+			//return stat;
+		}
+			
+	}
+
 	return SEC_E_OK;
 }
 
@@ -228,7 +235,7 @@ int transmit(SOCKET *sockFrom, SOCKET *sockTo, bool toProxy, char **previousMess
 		memcpy_s(previousMessages[index], BUFF_SIZE, buff, len+1);
 	}
 	
-	else
+	else // if From Proxy
 	{
 		int strOffset = 0;
 		int wordOffset = 0;
@@ -237,7 +244,7 @@ int transmit(SOCKET *sockFrom, SOCKET *sockTo, bool toProxy, char **previousMess
 
 		if (!_stricmp(firstWord, "http"))
 		{
-			wordOffset = getWord(buff, len, firstWord, len, wordOffset);
+			wordOffset = 9;// getWord(buff, len, firstWord, len, wordOffset);
 			getWord(buff, len, secondWord, 3, wordOffset);
 
 			if (!_stricmp(secondWord, "407"))
@@ -261,7 +268,7 @@ int transmit(SOCKET *sockFrom, SOCKET *sockTo, bool toProxy, char **previousMess
 
 				if (!_stricmp(secondWord, "negotiate"))
 				{
-					len = setAuthBuf(buff, previousMessages[index - 1], hostName); //WSAECONNABORTED
+					len = setAuthBuf(buff, previousMessages[index - 1], hostName);
 					if (len < 0)
 					{
 						printf("setAuthBuf error\n");
