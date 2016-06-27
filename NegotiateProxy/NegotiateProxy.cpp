@@ -9,9 +9,7 @@
 // Define parameters
 #define BUFF_SIZE	12*1024 // buffer size
 
-PSEC_WINNT_AUTH_IDENTITY_OPAQUE pAuthIdentity = NULL; // The structure for storing user data entered
-
-SECURITY_STATUS getToken(char **negotiateToken, WCHAR *hostName)
+SECURITY_STATUS getToken(char **negotiateToken, WCHAR *targetName, WCHAR *hostName)
 {
 	//----------------------------------------------------------------------
 	unsigned long cPackages;
@@ -26,7 +24,7 @@ SECURITY_STATUS getToken(char **negotiateToken, WCHAR *hostName)
 	if (stat != SEC_E_OK)
 	{
 		wprintf(
-			L"Security function failed with error: %#x\n",
+			L"Security function failed with error: %i\n",
 			stat);
 		return stat;
 	}
@@ -38,36 +36,9 @@ SECURITY_STATUS getToken(char **negotiateToken, WCHAR *hostName)
 
 	//--------------------------------------------------------------------
 
-	SEC_WCHAR targetName[NI_MAXHOST];
-
-	// Get domain name
-	WCHAR *domain = new WCHAR[wcslen(hostName) + 1], *pDomain = domain;
-
-	for (int i = wcslen(hostName), point = 0; i >= 0; i--)
-	{
-		point += (hostName[i] == L'.');
-		if (point == 2)
-		{
-			domain = &domain[i + 1];
-			break;
-		}
-		domain[i] = towupper(hostName[i]);
-	}
-
-	// Set target name
-	_snwprintf_s(
-		targetName,
-		NI_MAXHOST,
-		_TRUNCATE,
-		L"HTTP/%s@%s",
-		hostName,
-		domain);
-
-	delete[] pDomain;
-
-	//--------------------------------------------------------------------
 	CredHandle hCredential;
 	TimeStamp tsExpiry;
+	PSEC_WINNT_AUTH_IDENTITY_OPAQUE pAuthIdentity = NULL; // The structure for storing user data entered
 
 	stat = AcquireCredentialsHandle(
 		NULL,
@@ -81,12 +52,12 @@ SECURITY_STATUS getToken(char **negotiateToken, WCHAR *hostName)
 		&tsExpiry);
 
 	if (stat != SEC_E_OK)
-		{
-			wprintf(
-				L"Credentials function failed with error: %#x\n",
-				stat);
-			return stat;
-		}
+	{
+		wprintf(
+			L"Credentials function failed with error: %i\n",
+			stat);
+		return stat;
+	}
 
 	//--------------------------------------------------------------------
 
@@ -133,9 +104,9 @@ SECURITY_STATUS getToken(char **negotiateToken, WCHAR *hostName)
 	FreeContextBuffer(PackageInfo);
 
 	if (outSecBuf.cbBuffer)
-		{
-			base64_encode(reinterpret_cast < char* > (m_pOutBuf), outSecBuf.cbBuffer, negotiateToken);
-		}
+	{
+		base64_encode(reinterpret_cast < char* > (m_pOutBuf), outSecBuf.cbBuffer, negotiateToken);
+	}
 	else
 	{
 		return -1;
@@ -160,28 +131,25 @@ SECURITY_STATUS getToken(char **negotiateToken, WCHAR *hostName)
 
 		BOOL fSave = TRUE; // Checkmark "Remember user"
 
-		do
-		{
-			stat = SspiPromptForCredentials(
-				targetName,
-				&creduiInfo,
-				0,
-				szPackage,
-				NULL,
-				&pAuthIdentity,
-				&fSave,
-				0);
-		} while (stat != SEC_E_OK);
-			
+		
+		stat = SspiPromptForCredentials(
+			targetName,
+			&creduiInfo,
+			0,
+			szPackage,
+			NULL,
+			&pAuthIdentity,
+			&fSave,
+			0);
 	}
 
 	return SEC_E_OK;
 }
 
-int setAuthBuf(char(&buff)[BUFF_SIZE], char *previousMessage, WCHAR *hostName)
+int setAuthBuf(char(&buff)[BUFF_SIZE], char *previousMessage, WCHAR *targetName, WCHAR *hostName)
 {
 	char *negotiateToken = new char[2048];
-	if (getToken(&negotiateToken, hostName) == SEC_E_OK)
+	if (getToken(&negotiateToken, targetName, hostName) == SEC_E_OK)
 	{
 		memset(buff, 0, sizeof(buff));
 		previousMessage[strlen(previousMessage)-2] = 0;
@@ -205,7 +173,7 @@ int setAuthBuf(char(&buff)[BUFF_SIZE], char *previousMessage, WCHAR *hostName)
 	}
 }
 
-int transmit(SOCKET *sockFrom, SOCKET *sockTo, bool toProxy, char **previousMessages, DWORD index, WCHAR *hostName, sockaddr *remoteAddr, WSAEVENT *Event)//char(&buff)[BUFF_SIZE]
+int transmit(SOCKET *sockFrom, SOCKET *sockTo, bool toProxy, char **previousMessages, DWORD index, WCHAR *targetName, WCHAR *hostName, sockaddr *remoteAddr, WSAEVENT *Event)//char(&buff)[BUFF_SIZE]
 {
 	char buff[BUFF_SIZE];
 	memset(buff, 0, BUFF_SIZE);
@@ -263,7 +231,7 @@ int transmit(SOCKET *sockFrom, SOCKET *sockTo, bool toProxy, char **previousMess
 
 				if (!_stricmp(secondWord, "negotiate"))
 				{
-					len = setAuthBuf(buff, previousMessages[index - 1], hostName);
+					len = setAuthBuf(buff, previousMessages[index - 1], targetName, hostName);
 					if (len < 0)
 					{
 						printf("setAuthBuf error\n");
@@ -321,9 +289,24 @@ int transmit(SOCKET *sockFrom, SOCKET *sockTo, bool toProxy, char **previousMess
 int _tmain(int argc, _TCHAR* argv[])
 {
 	// Get the command line options
-	WCHAR *lPort, *rPort, *rAddr;
+	WCHAR *lPort, *rPort, *rAddr, *targetName = NULL;
 	int i = 1;
 	argv[i] ? NULL : info(argv[0]);
+	bool showTargetName = false;
+
+	if (!_wcsicmp(argv[i], L"shT"))
+	{
+		showTargetName = true;
+		i++;
+		argv[i] ? NULL : info(argv[0]);
+	}
+
+	if (!_wcsicmp(argv[i], L"setT"))
+	{
+		(targetName = argv[++i]) ? NULL : info(argv[0]);
+		i++;
+		argv[i] ? NULL : info(argv[0]);
+	}
 
 	if (!_wcsicmp(argv[i], L"lp"))
 	{
@@ -360,8 +343,8 @@ int _tmain(int argc, _TCHAR* argv[])
 		return -1;
 	}
 
-	WCHAR host[NI_MAXHOST];
-	iResult = GetNameInfo(remoteAddr->ai_addr, sizeof(SOCKADDR), host, NI_MAXHOST, NULL, 0, NI_NAMEREQD);
+	WCHAR hostName[NI_MAXHOST];
+	iResult = GetNameInfo(remoteAddr->ai_addr, sizeof(SOCKADDR), hostName, NI_MAXHOST, NULL, 0, NI_NAMEREQD);
 	if (iResult != 0)
 	{
 		switch (iResult)
@@ -376,6 +359,16 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 
 		return -1;
+	}
+
+	if (!targetName)
+	{
+		targetName = buildTargetName(hostName);
+	}
+	
+	if (showTargetName)
+	{
+		wprintf(L"Target Name: '%s'\n", targetName);
 	}
 
 	// Create a listening socket
@@ -406,7 +399,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	iResult = bind(ListenSocket, inetAddr->ai_addr, sizeof(SOCKADDR));
 	if (iResult != 0)
 	{
-		wprintf(L"bind failed with error: %#x\n", WSAGetLastError());
+		wprintf(L"bind failed with error: %i\n", WSAGetLastError());
 		return -1;
 	}
 
@@ -422,7 +415,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	iResult = WSAEventSelect(ListenSocket, NewEvent, FD_ACCEPT);
 	if (iResult != 0)
 	{
-		wprintf(L"WSAEventSelect failed with error: %#x\n", WSAGetLastError());
+		wprintf(L"WSAEventSelect failed with error: %i\n", WSAGetLastError());
 		return -1;
 	}
 
@@ -431,7 +424,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	iResult = listen(ListenSocket, 0);
 	if (iResult != 0)
 	{
-		wprintf(L"listen failed with error: %#x\n", WSAGetLastError());
+		wprintf(L"listen failed with error: %i\n", WSAGetLastError());
 		return -1;
 	}
 	wprintf(L"NegotiateProxy listen on port %s\n", lPort);
@@ -462,6 +455,8 @@ int _tmain(int argc, _TCHAR* argv[])
 	memset(previousMessagesArray, NULL, WSA_MAXIMUM_WAIT_EVENTS);
 	for (int i = 0; i < WSA_MAXIMUM_WAIT_EVENTS; previousMessagesArray[i] = NULL, i++) {}
 	
+	
+
 	while (1)
 	{
 
@@ -539,7 +534,8 @@ int _tmain(int argc, _TCHAR* argv[])
 					toProxy,
 					previousMessagesArray,
 					index,
-					host,
+					targetName,
+					hostName,
 					remoteAddr->ai_addr,
 					&EventArray[index]);
 				if (iResult < 0) return -1;

@@ -1,5 +1,37 @@
 #include "stdafx.h"
 
+WCHAR* buildTargetName(WCHAR *hostName)
+{
+	WCHAR *targetName = new WCHAR[NI_MAXHOST];
+
+	// Get domain name
+	WCHAR *domain = new WCHAR[wcslen(hostName) + 1], *pDomain = domain;
+
+	for (int i = wcslen(hostName), point = 0; i >= 0; i--)
+	{
+		point += (hostName[i] == L'.');
+		if (point == 2)
+		{
+			domain = &domain[i + 1];
+			break;
+		}
+		domain[i] = towupper(hostName[i]);
+	}
+
+	// Set target name
+	_snwprintf_s(
+		targetName,
+		NI_MAXHOST,
+		_TRUNCATE,
+		L"HTTP/%s@%s",
+		hostName,
+		domain);
+
+	delete[] pDomain;
+
+	return targetName;
+}
+
 size_t base64_encode(const char *inp, size_t insize, char **outptr)
 {
 	// Base64 Encoding/Decoding Table
@@ -118,11 +150,19 @@ SOCKET newSock()
 
 void info(_TCHAR *progName)
 {
-	wprintf(L"usage:  \n%s [lp <lPort>] <rAddr> <rPort>\n\n", progName);
-	wprintf(L"lPort - the port on which the server listens, by default 3128\n");
+	wprintf(L"\nusage:\n\n%s [shT] [setT <targetName>] [lp <lPort>] <rAddr> <rPort>\n\n", progName);
+
+	wprintf(L"shT - show target name\n\n");
+	wprintf(L"setT <targetName> - manually set the target name.\n");
+	wprintf(L"targetName must be in the format: HTTP/proxyaddress.com@USERDOMAIN.COM\n\n");
+
+	wprintf(L"lp <lPort> - the port on which the server listens\n");
+	wprintf(L"by default lPort = 3128\n\n");
+
 	wprintf(L"rAddr - address of the proxy-server to which you are connecting\n");
 	wprintf(L"rPort - proxy-server port to which you are connecting\n\n");
-	wprintf(L"example: \n%s lp 8080 proxy.host.ru 3128\n", progName);
+
+	wprintf(L"example: \n%s sht lp 8080 proxy.host.ru 3128\n", progName);
 	exit(0);
 }
 

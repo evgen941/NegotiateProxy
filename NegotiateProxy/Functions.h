@@ -1,5 +1,7 @@
 #pragma once
 
+WCHAR* buildTargetName(WCHAR *hostName);
+
 size_t base64_encode(const char *inp, size_t insize, char **outptr);
 
 int WSAInit();
