@@ -16,6 +16,4 @@ int getString(char *inBuff, int inBuffLen, char *outBuff, int len, int offset);
 
 int getWord(char *inBuff, int inBuffLen, char *outBuff, int len, int offset);
 
-//void getSecondWord(char *inBuff, char *outBuff, int inBuffLen);
-
 void printConnections(int connections);

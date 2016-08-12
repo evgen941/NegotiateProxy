@@ -455,8 +455,6 @@ int _tmain(int argc, _TCHAR* argv[])
 	memset(previousMessagesArray, NULL, WSA_MAXIMUM_WAIT_EVENTS);
 	for (int i = 0; i < WSA_MAXIMUM_WAIT_EVENTS; previousMessagesArray[i] = NULL, i++) {}
 	
-	
-
 	while (1)
 	{
 
