@@ -47,6 +47,8 @@
             this.toolStripMenuItem2 = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripMenuItem3 = new System.Windows.Forms.ToolStripSeparator();
             this.toolStripMenuItem4 = new System.Windows.Forms.ToolStripMenuItem();
+            this.timer1 = new System.Windows.Forms.Timer(this.components);
+            this.connCountLabel = new System.Windows.Forms.Label();
             ((System.ComponentModel.ISupportInitialize)(this.lPort)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.rPort)).BeginInit();
             this.trayMenuStrip.SuspendLayout();
@@ -224,17 +226,33 @@
             this.toolStripMenuItem4.Text = "Выход";
             this.toolStripMenuItem4.Click += new System.EventHandler(this.toolStripMenuItem4_Click);
             // 
+            // timer1
+            // 
+            this.timer1.Enabled = true;
+            this.timer1.Interval = 500;
+            this.timer1.Tick += new System.EventHandler(this.timer1_Tick);
+            // 
+            // connCountLabel
+            // 
+            this.connCountLabel.AutoSize = true;
+            this.connCountLabel.Location = new System.Drawing.Point(9, 130);
+            this.connCountLabel.Name = "connCountLabel";
+            this.connCountLabel.Size = new System.Drawing.Size(148, 13);
+            this.connCountLabel.TabIndex = 3;
+            this.connCountLabel.Text = "Количество подключений: 0";
+            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(421, 160);
+            this.ClientSize = new System.Drawing.Size(421, 157);
             this.Controls.Add(this.useTarget);
             this.Controls.Add(this.targetBox);
             this.Controls.Add(this.stopButton);
             this.Controls.Add(this.label3);
             this.Controls.Add(this.label2);
             this.Controls.Add(this.label4);
+            this.Controls.Add(this.connCountLabel);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.rAddr);
             this.Controls.Add(this.rPort);
@@ -277,6 +295,8 @@
         private System.Windows.Forms.ToolStripMenuItem toolStripMenuItem2;
         private System.Windows.Forms.ToolStripSeparator toolStripMenuItem3;
         private System.Windows.Forms.ToolStripMenuItem toolStripMenuItem4;
+        private System.Windows.Forms.Timer timer1;
+        private System.Windows.Forms.Label connCountLabel;
     }
 }
 

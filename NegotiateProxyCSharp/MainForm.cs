@@ -35,7 +35,7 @@ namespace NegotiateProxyCSharp
             label3.Enabled = en;
             label4.Enabled = en;
             toolStripMenuItem1.Enabled = en;
-            toolStripMenuItem2.Enabled = en;
+            toolStripMenuItem2.Enabled = !en;
             stopButton.Enabled = !en;
         }
 
@@ -145,6 +145,12 @@ namespace NegotiateProxyCSharp
                 WindowState = FormWindowState.Minimized;
                 Visible = false;
             }
+        }
+
+        private void timer1_Tick(object sender, EventArgs e)
+        {
+            connCountLabel.Text = string.Format("Количество подключений: {0}", clientConnection.count);
+            notifyIcon1.Text = string.Format("NegotiateProxy - {0}", connCountLabel.Text);
         }
     }
 
@@ -346,6 +352,13 @@ namespace NegotiateProxyCSharp
             stop = true;
             connections.Remove(this);
             done.Set();
+            if (GetType() == typeof(clientConnection))
+                clientConnection.count--;
+            if (other != null)
+            {
+                if (other.stop != true)
+                    other.Stop();
+            }
         }
     }
 
@@ -523,7 +536,13 @@ namespace NegotiateProxyCSharp
 
     public class clientConnection : connection
     {
+        public static int count = 0;
         public byte[] previousMsg = new byte[BufferSize];
+
+        public clientConnection()
+        {
+            count++;
+        }
     }
 
     public partial class serverConnection : connection
