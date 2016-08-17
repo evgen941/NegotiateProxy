@@ -8,6 +8,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 
 namespace NegotiateProxyCSharp
@@ -17,6 +18,8 @@ namespace NegotiateProxyCSharp
         public MainForm()
         {
             InitializeComponent();
+
+            clientConnection.onConnect += showConnCount;
         }
 
         public static ManualResetEvent acceptDone = new ManualResetEvent(false);
@@ -44,7 +47,7 @@ namespace NegotiateProxyCSharp
             string targetName = "";
             listener Listener = new listener((int)lPort.Value, (int)rPort.Value, rAddr.Text, useTarget.Checked, targetBox.Text, ref targetName);
             // Деактивируем элемены формы
-            if (Listener.OK())
+            if (Listener.OK)
             {
                 if (!useTarget.Checked)
                     targetBox.Text = targetName;
@@ -147,9 +150,13 @@ namespace NegotiateProxyCSharp
             }
         }
 
-        private void timer1_Tick(object sender, EventArgs e)
+        private void showConnCount()
         {
-            connCountLabel.Text = string.Format("Количество подключений: {0}", clientConnection.count);
+            connCountLabel.BeginInvoke(
+                (MethodInvoker)(() => connCountLabel.Text = string.Format(
+                    "Количество подключений: {0}", 
+                    clientConnection.getCount())));
+            
             notifyIcon1.Text = string.Format("NegotiateProxy - {0}", connCountLabel.Text);
         }
     }
@@ -353,7 +360,10 @@ namespace NegotiateProxyCSharp
             connections.Remove(this);
             done.Set();
             if (GetType() == typeof(clientConnection))
-                clientConnection.count--;
+            {
+                clientConnection.subConn();
+            }
+                
             if (other != null)
             {
                 if (other.stop != true)
@@ -452,9 +462,12 @@ namespace NegotiateProxyCSharp
             return string.Format("HTTP/{0}@{1}", hostName, domain);
         }
 
-        public bool OK()
+        public bool OK
         {
-            return remoteEP != null;
+            get
+            {
+                return remoteEP != null;
+            }
         }
 
         private void accept()
@@ -536,12 +549,34 @@ namespace NegotiateProxyCSharp
 
     public class clientConnection : connection
     {
-        public static int count = 0;
+        private static int count = 0;
+
+        public delegate void connEvent();
+
+        public static event connEvent onConnect;
+
         public byte[] previousMsg = new byte[BufferSize];
+
+        public static void addConn()
+        {
+            count++;
+            onConnect();
+        }
+
+        public static void subConn()
+        {
+            count--;
+            onConnect();
+        }
+
+        public static int getCount()
+        {
+            return count;
+        }
 
         public clientConnection()
         {
-            count++;
+            addConn();
         }
     }
 
